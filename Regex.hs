@@ -25,6 +25,15 @@ digitSet = CharSet False [('0', '9')]
 wordSet  = CharSet False [('a', 'z'), ('A', 'Z'), ('0', '9'), ('_', '_')]
 spaceSet = CharSet False [(c, c) | c <- " \t\n\r\f\v"]
 
+-- [abc] ==> [^abc] en andersom. Gebruikt voor \D, \W en \S.
+complementSet :: CharSet -> CharSet
+complementSet (CharSet neg rs) = CharSet (not neg) rs
+
+-- De bereiken uit een set halen. Gebruikt voor \d binnen [ ].
+setRanges :: CharSet -> [(Char, Char)]
+setRanges (CharSet _ rs) = rs
+
+
 data Regex
   = Empty            -- ∅ : matcht niets
   | Eps              -- ε : matcht alleen de lege string
@@ -134,3 +143,16 @@ opt :: Regex -> Regex
 opt r
   | nullable r = r
   | otherwise = alt Eps r
+
+-- r{n}, r{n,} en r{n,m}.  Nothing als bovengrens = geen bovengrens.
+repeatRange :: Int -> Maybe Int -> Regex -> Regex
+repeatRange n upper r = cat (times n) rest
+  where
+    times k = foldr cat Eps (replicate k r)
+    rest = case upper of
+      Nothing -> star r
+      Just m  -> optionals (m - n)
+    -- r{0,k} = (r(r(r)?)?)?  — genest, zodat er geen dubbele paden ontstaan
+    optionals k
+      | k <= 0    = Eps
+      | otherwise = opt (cat r (optionals (k - 1)))
